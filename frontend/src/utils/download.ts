@@ -6,6 +6,7 @@ import { getRequestClient } from "@/core/network/requests";
 import { Filenames } from "@/utils/filenames";
 import { Paths } from "@/utils/paths";
 import { prettyError } from "./errors";
+import { replaceIframesForCapture } from "./iframe";
 import { Logger } from "./Logger";
 
 /**
@@ -78,6 +79,7 @@ function prepareCellElementForScreenshot(element: HTMLElement) {
 
 /**
  * Capture a cell output as a PNG data URL.
+ * Handles iframes by capturing same-origin content or showing placeholders.
  */
 export async function getImageDataUrlForCell(
   cellId: CellId,
@@ -86,12 +88,15 @@ export async function getImageDataUrlForCell(
   if (!element) {
     return;
   }
+
+  const restoreIframes = await replaceIframesForCapture(element, toPng);
   const cleanup = prepareCellElementForScreenshot(element);
 
   try {
     return await toPng(element);
   } finally {
     cleanup();
+    restoreIframes();
   }
 }
 
@@ -125,6 +130,8 @@ export async function downloadHTMLAsImage(opts: {
   const appEl = document.getElementById("App");
   const currentScrollY = appEl?.scrollTop ?? 0;
 
+  const restoreIframes = await replaceIframesForCapture(element, toPng);
+
   let cleanup: (() => void) | undefined;
   if (prepare) {
     // Let the prepare function handle adding classes (e.g., body.printing)
@@ -147,6 +154,7 @@ export async function downloadHTMLAsImage(opts: {
     });
   } finally {
     cleanup?.();
+    restoreIframes();
     if (document.body.classList.contains("printing")) {
       document.body.classList.remove("printing");
     }
